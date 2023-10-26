@@ -1,23 +1,24 @@
 #include <Adafruit_NeoPixel.h>
-#include <TimerOne.h> 
+#include <TimerOne.h>
+
 #define SAMPLES 10
 
-
 #define LED_PIN 7
-#define RPhase 2
+#define RPhase 3
 #define LED_COUNT 57
 #define ZERO_ERROR 0.8
 #define MIN_FREQ   1.1
 #define MAX_FREQ   25
 
-volatile unsigned long risingEdges[SAMPLES]; 
-volatile byte index = 0;
+volatile unsigned long risingEdges[SAMPLES];
+volatile byte index = 0;  
+unsigned long startTime;
 
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 float frequency = 0;
-unsigned long startTime = 0;
+
 unsigned long endTime = 0;
 bool risingEdge = false;
 bool measureFrequency = true;
@@ -31,17 +32,20 @@ void setup() {
   strip.begin();       
   strip.show();
   strip.setBrightness(255);
+  Serial.begin(9600);
 }
 void loop() {
 
-  float frequency = calculateFrequency();  
-  if (frequency >= MIN_FREQ && frequency <= MAX_FREQ) {
+  float frequency = calculateFrequency();
+
+  if(frequency > 0.1 && frequency <25.0){
     float timePeriod = (1 / frequency) * 1000;
-    for(int i = 0; i < LED_COUNT; i++){
+    Serial.println(frequency);
+    // for(int i = 0; i < LED_COUNT; i++){
       northSouthChasing(i, timePeriod / LED_COUNT);
-    }
-    delay(timePeriod / (LED_COUNT * 4)); 
-    delay(timePeriod / (LED_COUNT * 4));
+    // }
+    // delay(timePeriod / (LED_COUNT * 4)); 
+    // delay(timePeriod / (LED_COUNT * 4));
   } 
   else if(frequency>25.0 && frequency<50.0){
     float timePeriod = (1 / 38) * 1000;
@@ -60,17 +64,6 @@ void loop() {
   }
 }
 
-void handleInterrupt() {
-
-  if (digitalRead(RPhase) == HIGH) {
-    risingEdges[index] = Timer1.get();   
-    index++;
-    if (index >= SAMPLES) {
-      index = 0; 
-    }
-
-  }  
-}
 void northSouthChasing(int index, float wait) {
     int redIndex = index;
     int blueIndex = (index + (LED_COUNT / 2)) % LED_COUNT;
@@ -81,17 +74,33 @@ void northSouthChasing(int index, float wait) {
     delay(wait);
 }
 
+void handleInterrupt() {
+  delayMicroseconds(100);
+  if(index == 0) {
+    startTime = millis();
+  } else {
+    risingEdges[index] = millis() - startTime;
+  }
+
+  index++;
+
+  if(index >= SAMPLES) {
+    index = 0;
+  }
+  
+}
+
 float calculateFrequency() {
 
-  // Average time between recent edges
   unsigned long total = 0;
-  for (int i = 0; i < SAMPLES; i++) {
+
+  for(int i=1; i<SAMPLES; i++) {
     total += risingEdges[i] - risingEdges[i-1]; 
   }
-  unsigned long averagePeriod = total / SAMPLES;
 
-  // Calculate frequency
-  float frequency = 1.0 / (averagePeriod * 0.001); // ms to s
+  unsigned long period = total / (SAMPLES-1);
+
+  float frequency = 1000.0 / period;
 
   return frequency;
 
