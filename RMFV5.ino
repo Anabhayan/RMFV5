@@ -11,8 +11,12 @@
 #define MAX_FREQ   25
 
 volatile unsigned long risingEdges[SAMPLES];
+volatile unsigned long periodArray[SAMPLES-1];
+
 volatile byte index = 0;  
 unsigned long startTime;
+float error_PU;
+int sample_new;
 
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -95,13 +99,28 @@ float calculateFrequency() {
   unsigned long total = 0;
 
   for(int i=1; i<SAMPLES; i++) {
-    total += risingEdges[i] - risingEdges[i-1]; 
+    periodArray[i-1] = risingEdges[i] - risingEdges[i-1]
+    total += periodArray[i-1]; 
   }
 
   unsigned long period = total / (SAMPLES-1);
+  
+  sample_new = SAMPLES - 1;
+  // removes extreme values that are 50% more or less than the average
+  for(int i=1; i<SAMPLES; i++) {
+    error_PU = float(period - periodArray[i-1]) / period;
+    if(abs(error_PU) > 0.5){ // 50% relative error margin
+      total -= periodArray[i-1];
+      sample_new -= 1 
+    }
+  }
+  period = total / (sample_new);
 
   float frequency = 1000.0 / period;
 
   return frequency;
 
 }
+
+
+
